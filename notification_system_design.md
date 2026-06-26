@@ -378,3 +378,98 @@ db.notifications.updateMany(
   }
 );
 ```
+
+---
+
+## Stage 3: Relational Database Query Analysis and Optimization
+
+### 1. Analysis of the Query
+The original query is:
+```sql
+SELECT * FROM notifications
+WHERE studentID = 1042 AND isRead = false
+ORDER BY createdAt ASC;
+```
+
+#### Accuracy Check:
+- **Yes, it is accurate.** It correctly filters the notifications for a specific student (`studentID = 1042`), isolates only the unread ones (`isRead = false`), and sorts them in ascending order (`ORDER BY createdAt ASC`) so the student receives the oldest unread notifications first.
+
+---
+
+### 2. Performance Analysis: Why is the query slow?
+At 5,000,000 notifications and 50,000 students, this query is suffering from two major bottlenecks:
+
+1. **Full Table Scan or Sub-optimal Index Lookup**:
+   - Without a specific compound index, the database engine has to scan all 5,000,000 rows to find those matching the conditions, which is an \(O(N)\) complexity.
+   - If there is only a single-column index on `studentID`, the engine retrieves all notifications for that student (average of 100 rows per student), but must then filter by `isRead = false` manually and sort them afterwards.
+   - If there is only a single-column index on `isRead`, it is highly inefficient because `isRead` has extremely **low cardinality** (only two values: true/false). Filtering on it returns ~50% of the database (~2,500,000 rows), making index scanning slower than a sequential table read.
+2. **In-Memory Sorting (Filesort)**:
+   - Since the query contains `ORDER BY createdAt ASC`, if the index does not provide pre-sorted ordering for the target subset, the database must copy the filtered rows into a temporary buffer (Sort Buffer) and run an in-memory sort algorithm (like Quicksort, \(O(M \log M)\) where \(M\) is the number of matching records). If the buffer fills up, it writes temp files to disk, causing high disk I/O latency.
+
+---
+
+### 3. Recommended Optimization & Computational Cost
+
+#### Proposed Change:
+To make this query execute in sub-millisecond times, we should create a **Compound (Composite) Index** on the table:
+```sql
+CREATE INDEX idx_notifications_student_unread_created 
+ON notifications (studentID, isRead, createdAt ASC);
+```
+
+**Why this compound index works:**
+- **Filtering (Equality)**: The engine first matches `studentID` (high cardinality) to shrink the search space immediately.
+- **Refinement**: It then matches `isRead` within that student's records.
+- **Sorting**: Finally, because `createdAt ASC` is the last column in the compound index, the records are already sorted on disk by creation date. The database optimizer completely skips the in-memory sorting step.
+
+*(Alternative for PostgreSQL only)*:
+If the database is PostgreSQL, we can use a **Partial Index** to minimize disk space, since we only query unread notifications:
+```sql
+CREATE INDEX idx_notifications_student_unread_partial 
+ON notifications (studentID, createdAt ASC) 
+WHERE isRead = false;
+```
+This is even more efficient as it reduces index bloat.
+
+#### Computation Cost Comparison:
+- **Before Optimization (Full Table Scan + Filesort)**:
+  - Time Complexity: \(O(N) + O(M \log M)\) where \(N = 5,000,000\) database rows and \(M\) is the student's notification count.
+  - Disk/RAM cost: High CPU utilization due to scanning pages and high RAM sorting buffer usage.
+- **After Optimization (Compound Index Scan)**:
+  - Time Complexity: \(O(\log N) + O(K)\) where \(K\) is the number of unread notifications matching the filter (usually very small).
+  - Disk/RAM cost: Negligible. The lookup runs as a direct B-Tree traversal.
+
+---
+
+### 4. Evaluation of "Index on Every Column" Strategy
+A team member suggested adding indexes on every column separately to be "safe".
+
+**This advice is NOT effective and is highly counter-productive.**
+
+#### Why?
+1. **Write Performance Degradation**: Every time a notification is created, read, or deleted, **every single index** must be updated (B-Tree splits/re-balancing). This turns fast insertions into bottleneck operations.
+2. **Database Optimizer Limitations**: The SQL optimizer can generally use only one index per table access in a query. Having individual indexes on `studentID`, `isRead`, and `createdAt` means the optimizer has to choose one sub-optimal index, perform a scan, and discard the others. It does *not* behave like a compound index.
+3. **Storage and RAM Bloat**: Indexes are stored in memory (e.g., InnoDB Buffer Pool in MySQL). Indexing every column wastes gigabytes of RAM. If index metadata exceeds the available memory, database performance crashes because pages must be constantly swapped from disk.
+
+---
+
+### 5. SQL Query: Placement Notifications in the Last 7 Days
+
+To fetch all unique students who received a placement notification (`notificationType = 'Placement'`) within the last 7 days:
+
+#### PostgreSQL/MySQL Query:
+```sql
+SELECT DISTINCT studentID 
+FROM notifications
+WHERE notificationType = 'Placement'
+  AND createdAt >= NOW() - INTERVAL '7 days';
+```
+
+*(Note: In MySQL, this can also be written as `createdAt >= DATE_SUB(NOW(), INTERVAL 7 DAY)`).*
+
+#### To optimize this query, we should add the following compound index:
+```sql
+CREATE INDEX idx_notifications_type_created 
+ON notifications (notificationType, createdAt);
+```
+
