@@ -1,8 +1,10 @@
 import express from "express";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
+import Redis from "ioredis";
 import Notification from "../models/Notification.js";
 import { authMiddleware, JWT_SECRET } from "../middleware/auth.js";
+import { dispatchBulkNotifications } from "../services/queue.js";
 
 const router = express.Router();
 
@@ -12,6 +14,32 @@ export const activeStreams = new Map();
 
 // In-memory fallback database for when MongoDB is disconnected or not whitelisted
 const memoryNotifications = [];
+
+// Export memory notifications helper
+export const appendMemoryNotifications = (records) => {
+  memoryNotifications.push(...records);
+};
+
+// Initialize Redis for caching
+const cacheRedis = new Redis(process.env.REDIS_URL || "redis://127.0.0.1:6379", {
+  maxRetriesPerRequest: null,
+  connectTimeout: 2000,
+}).on("error", () => {}); // Silence Redis errors
+
+// Cache invalidator
+const invalidateCache = async (userId) => {
+  try {
+    if (cacheRedis.status === "ready") {
+      const keys = await cacheRedis.keys(`notifications:${userId}:*`);
+      if (keys.length > 0) {
+        await cacheRedis.del(...keys);
+        console.log(`🧹 Cache cleared for user: ${userId}`);
+      }
+    }
+  } catch (error) {
+    console.error("Cache invalidation error:", error.message);
+  }
+};
 
 // Helper to check MongoDB connection status
 const isDbConnected = () => mongoose.connection.readyState === 1;
@@ -99,6 +127,21 @@ router.get("/", authMiddleware, async (req, res) => {
     const limitNum = parseInt(limit, 10) || 10;
     const skip = (pageNum - 1) * limitNum;
 
+    const cacheKey = `notifications:${req.user.id}:${status}:p:${pageNum}:l:${limitNum}`;
+
+    // 1. Try serving from Redis Cache if active
+    if (cacheRedis.status === "ready") {
+      try {
+        const cached = await cacheRedis.get(cacheKey);
+        if (cached) {
+          console.log(`⚡ [Redis Cache HIT] Serving feed for user: ${req.user.id}`);
+          return res.json(JSON.parse(cached));
+        }
+      } catch (cacheError) {
+        console.warn("Failed to read from Redis cache:", cacheError.message);
+      }
+    }
+
     // Build query conditions
     const query = { userId: req.user.id };
     if (status === "read") {
@@ -130,7 +173,7 @@ router.get("/", authMiddleware, async (req, res) => {
 
     const totalPages = Math.ceil(totalItems / limitNum);
 
-    return res.json({
+    const responsePayload = {
       success: true,
       data: notifications,
       pagination: {
@@ -141,7 +184,18 @@ router.get("/", authMiddleware, async (req, res) => {
         hasNextPage: pageNum < totalPages,
         hasPrevPage: pageNum > 1,
       },
-    });
+    };
+
+    // 2. Cache result in Redis if active
+    if (cacheRedis.status === "ready") {
+      try {
+        await cacheRedis.setex(cacheKey, 300, JSON.stringify(responsePayload)); // Cache for 5 mins
+      } catch (cacheError) {
+        console.warn("Failed to write to Redis cache:", cacheError.message);
+      }
+    }
+
+    return res.json(responsePayload);
   } catch (error) {
     return res.status(500).json({
       success: false,
@@ -182,6 +236,9 @@ router.patch("/:id/read", authMiddleware, async (req, res) => {
       });
     }
 
+    // Invalidate Redis cache
+    await invalidateCache(req.user.id);
+
     return res.json({
       success: true,
       message: "Notification marked as read.",
@@ -219,6 +276,9 @@ router.post("/read-all", authMiddleware, async (req, res) => {
         }
       });
     }
+
+    // Invalidate Redis cache
+    await invalidateCache(req.user.id);
 
     return res.json({
       success: true,
@@ -275,6 +335,9 @@ router.post("/mock", authMiddleware, async (req, res) => {
     // Push via SSE stream
     pushNotificationToUser(userId, newNotification);
 
+    // Invalidate Redis cache
+    await invalidateCache(userId);
+
     return res.status(201).json({
       success: true,
       message: "Notification triggered and broadcasted.",
@@ -284,6 +347,42 @@ router.post("/mock", authMiddleware, async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Server error creating mock notification.",
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * Asynchronous Bulk Notification Dispatcher (Notify All)
+ * POST /api/notifications/notify-all
+ */
+router.post("/notify-all", authMiddleware, async (req, res) => {
+  try {
+    const { studentIds, title, message } = req.body;
+
+    if (!studentIds || !Array.isArray(studentIds) || !title || !message) {
+      return res.status(400).json({
+        success: false,
+        message: "studentIds (array), title, and message are required fields.",
+      });
+    }
+
+    // Dispatch background bulk job
+    dispatchBulkNotifications(studentIds, title, message);
+
+    // Clear caches for all students asynchronously (non-blocking)
+    studentIds.forEach(async (id) => {
+      await invalidateCache(id);
+    });
+
+    return res.status(202).json({
+      success: true,
+      message: `Asynchronous bulk dispatch initiated for ${studentIds.length} students.`,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Server error starting bulk dispatch.",
       error: error.message,
     });
   }

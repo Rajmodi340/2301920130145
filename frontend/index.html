@@ -102,6 +102,36 @@
                 <span class="btn-icon">🚀</span>
               </button>
             </form>
+
+            <div class="divider" style="margin: 32px 0 20px 0;"><span>BULK DISPATCH SIMULATOR</span></div>
+            <form id="bulk-simulator-form">
+              <p class="section-desc" style="margin-bottom: 12px;">Trigger a batch job to notify thousands of students asynchronously.</p>
+              
+              <div class="form-group">
+                <label for="bulk-count">Student Count</label>
+                <select id="bulk-count">
+                  <option value="100">100 Students</option>
+                  <option value="1000">1,000 Students</option>
+                  <option value="5000">5,000 Students</option>
+                  <option value="50000" selected>50,000 Students (Stage 5 Scale)</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label for="bulk-title">Title</label>
+                <input type="text" id="bulk-title" value="Placement Announcement" required />
+              </div>
+
+              <div class="form-group">
+                <label for="bulk-message">Message</label>
+                <textarea id="bulk-message" rows="2" required>Important: Google is visiting campus for recruitment on July 5th. Apply now!</textarea>
+              </div>
+
+              <button type="submit" class="send-notification-btn" style="background: linear-gradient(135deg, #ec4899 0%, #d946ef 100%); box-shadow: 0 4px 12px rgba(236, 72, 153, 0.4);">
+                <span>Bulk Notify All</span>
+                <span class="btn-icon">⚡</span>
+              </button>
+            </form>
           </div>
 
           <!-- Column 2: Notification Feed -->
