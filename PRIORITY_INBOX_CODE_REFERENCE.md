@@ -25,25 +25,24 @@ async function initPriorityInbox() {
   try {
     // Step 1: Fetch notifications from API
     const notifications = await fetchNotifications();
-    
+
     if (notifications.length === 0) {
       displayNotifications([]);
       return;
     }
-    
+
     // Step 2: Get top 10 by priority
     const topNotifications = getTopPriorityNotifications(notifications, 10);
-    
+
     // Step 3: Render to page
     displayNotifications(topNotifications);
-    
   } catch (error) {
-    console.error('Error initializing Priority Inbox:', error);
+    console.error("Error initializing Priority Inbox:", error);
   }
 }
 
 // Automatically runs when page loads
-document.addEventListener('DOMContentLoaded', initPriorityInbox);
+document.addEventListener("DOMContentLoaded", initPriorityInbox);
 ```
 
 ---
@@ -56,28 +55,30 @@ document.addEventListener('DOMContentLoaded', initPriorityInbox);
 function calculatePriority(notification) {
   // Define type weights
   const PRIORITY_WEIGHTS = {
-    placement: 3,   // Highest
-    result: 2,      // Medium
-    event: 1        // Lowest
+    placement: 3, // Highest
+    result: 2, // Medium
+    event: 1, // Lowest
   };
-  
+
   // Get type weight (default to event if unknown)
-  const typeWeight = PRIORITY_WEIGHTS[notification.type] || PRIORITY_WEIGHTS.event;
-  
+  const typeWeight =
+    PRIORITY_WEIGHTS[notification.type] || PRIORITY_WEIGHTS.event;
+
   // Calculate recency score (0-100)
   // Newer = higher score
-  const notificationAge = Date.now() - new Date(notification.timestamp).getTime();
+  const notificationAge =
+    Date.now() - new Date(notification.timestamp).getTime();
   const dayInMs = 24 * 60 * 60 * 1000;
   const recencyScore = Math.max(0, 100 - (notificationAge / dayInMs) * 10);
-  
+
   // Combine: type matters more than recency
-  const priority = (typeWeight * 100) + recencyScore;
-  
+  const priority = typeWeight * 100 + recencyScore;
+
   return {
     notification,
     priority,
     typeWeight,
-    recencyScore
+    recencyScore,
   };
 }
 
@@ -95,14 +96,14 @@ function calculatePriority(notification) {
 ```javascript
 function getTopPriorityNotifications(notifications, n = 10) {
   // Step 1: Filter only unread notifications
-  const unreadNotifications = notifications.filter(notif => !notif.read);
-  
+  const unreadNotifications = notifications.filter((notif) => !notif.read);
+
   // Step 2: Calculate priority for each
   const withPriority = unreadNotifications.map(calculatePriority);
-  
+
   // Step 3: Sort by priority (highest first)
   withPriority.sort((a, b) => b.priority - a.priority);
-  
+
   // Step 4: Return top n
   return withPriority.slice(0, n);
 }
@@ -121,29 +122,33 @@ const MAX_CACHE_AGE = 5 * 60 * 1000; // 5 minutes
 async function fetchNotifications() {
   try {
     // Check if cache is fresh (less than 5 min old)
-    if (notificationsCache.length > 0 && 
-        Date.now() - lastFetchTime < MAX_CACHE_AGE) {
-      console.log('Using cached notifications');
+    if (
+      notificationsCache.length > 0 &&
+      Date.now() - lastFetchTime < MAX_CACHE_AGE
+    ) {
+      console.log("Using cached notifications");
       return notificationsCache;
     }
 
     // Fetch fresh data
-    console.log('Fetching notifications from API...');
-    const response = await fetch('http://4.224.186.213/evaluation-service/notifications');
-    
+    console.log("Fetching notifications from API...");
+    const response = await fetch(
+      "http://4.224.186.213/evaluation-service/notifications",
+    );
+
     if (!response.ok) {
       throw new Error(`API error: ${response.status}`);
     }
 
     const data = await response.json();
-    
+
     // Cache the results
     notificationsCache = Array.isArray(data) ? data : data.notifications || [];
     lastFetchTime = Date.now();
-    
+
     return notificationsCache;
   } catch (error) {
-    console.error('Error fetching notifications:', error);
+    console.error("Error fetching notifications:", error);
     return [];
   }
 }
@@ -158,27 +163,29 @@ async function fetchNotifications() {
 
 ```javascript
 function displayNotifications(topNotifications) {
-  const container = document.getElementById('priority-inbox-container');
-  
+  const container = document.getElementById("priority-inbox-container");
+
   if (!container) {
-    console.error('Container not found');
+    console.error("Container not found");
     return;
   }
 
   // Clear existing
-  container.innerHTML = '';
+  container.innerHTML = "";
 
   // Handle empty state
   if (topNotifications.length === 0) {
-    container.innerHTML = '<div class="no-notifications">No unread notifications</div>';
+    container.innerHTML =
+      '<div class="no-notifications">No unread notifications</div>';
     return;
   }
 
   // Render each notification
-  const html = topNotifications.map((item, index) => {
-    const formatted = formatNotification(item);
-    
-    return `
+  const html = topNotifications
+    .map((item, index) => {
+      const formatted = formatNotification(item);
+
+      return `
       <div class="notification-item priority-${index + 1}">
         <div class="notification-header">
           <span class="icon">${formatted.icon}</span>
@@ -194,10 +201,11 @@ function displayNotifications(topNotifications) {
         </div>
       </div>
     `;
-  }).join('');
+    })
+    .join("");
 
   container.innerHTML = html;
-  
+
   console.log(`Displayed ${topNotifications.length} notifications`);
 }
 ```
@@ -316,19 +324,19 @@ const priority = (3 * 100) + 98 = 398
 ```javascript
 [
   {
-    notification: {id: "n1", title: "Google Placement", type: "placement"},
+    notification: { id: "n1", title: "Google Placement", type: "placement" },
     priority: 398,
     typeWeight: 3,
-    recencyScore: 98
+    recencyScore: 98,
   },
   {
-    notification: {id: "n2", title: "Microsoft Placement", type: "placement"},
+    notification: { id: "n2", title: "Microsoft Placement", type: "placement" },
     priority: 397,
     typeWeight: 3,
-    recencyScore: 97
+    recencyScore: 97,
   },
   // ... 8 more items
-]
+];
 ```
 
 ---
@@ -342,22 +350,22 @@ const priority = (3 * 100) + 98 = 398
 
 // 1. Type weights (change relative importance)
 const PRIORITY_WEIGHTS = {
-  placement: 3,   // ← Change to adjust importance
-  result: 2,      // ← Higher = more important
-  event: 1        // ← Lower = less important
+  placement: 3, // ← Change to adjust importance
+  result: 2, // ← Higher = more important
+  event: 1, // ← Lower = less important
 };
 
 // 2. Number of top items to display
-const TOP_N = 10;  // ← Show top 20 instead?
+const TOP_N = 10; // ← Show top 20 instead?
 
 // 3. Cache duration
-const MAX_CACHE_AGE = 5 * 60 * 1000;  // ← 3 min? 10 min?
+const MAX_CACHE_AGE = 5 * 60 * 1000; // ← 3 min? 10 min?
 
 // 4. Auto-refresh interval
-setInterval(refreshNotifications, 2 * 60 * 1000);  // ← Change to 1 min?
+setInterval(refreshNotifications, 2 * 60 * 1000); // ← Change to 1 min?
 
 // 5. API endpoint
-const API_URL = 'http://4.224.186.213/evaluation-service/notifications';
+const API_URL = "http://4.224.186.213/evaluation-service/notifications";
 // ← Point to your own server
 ```
 
@@ -371,13 +379,13 @@ const API_URL = 'http://4.224.186.213/evaluation-service/notifications';
 // Add to priorityInbox.js before production:
 
 function log(message, data = null) {
-  console.log(`[PriorityInbox] ${message}`, data || '');
+  console.log(`[PriorityInbox] ${message}`, data || "");
 }
 
 // Usage:
-log('Calculating priority for:', notification);
-log('Top 10 notifications:', topNotifications);
-log('Cache age:', Date.now() - lastFetchTime);
+log("Calculating priority for:", notification);
+log("Top 10 notifications:", topNotifications);
+log("Cache age:", Date.now() - lastFetchTime);
 ```
 
 ### Test Locally
@@ -392,15 +400,15 @@ console.log(notificationsCache);
 refreshNotifications();
 
 // 3. Check last fetch time
-console.log('Last fetch:', new Date(lastFetchTime).toLocaleString());
+console.log("Last fetch:", new Date(lastFetchTime).toLocaleString());
 
 // 4. Trigger calculations manually
 const testNotif = {
-  type: 'placement',
+  type: "placement",
   timestamp: new Date().toISOString(),
-  title: 'Test'
+  title: "Test",
 };
-console.log('Score:', calculatePriority(testNotif));
+console.log("Score:", calculatePriority(testNotif));
 ```
 
 ---
@@ -429,17 +437,17 @@ console.log('Score:', calculatePriority(testNotif));
 ```javascript
 // Single array format
 [
-  {id: 1, title: "...", type: "placement", timestamp: "..."},
-  {id: 2, title: "...", type: "result", timestamp: "..."},
+  { id: 1, title: "...", type: "placement", timestamp: "..." },
+  { id: 2, title: "...", type: "result", timestamp: "..." },
   // ...
-]
+];
 
 // Or nested format
 {
   notifications: [
-    {id: 1, title: "...", type: "placement", timestamp: "..."},
+    { id: 1, title: "...", type: "placement", timestamp: "..." },
     // ...
-  ]
+  ];
 }
 
 // Both formats are supported automatically
@@ -451,19 +459,18 @@ console.log('Score:', calculatePriority(testNotif));
 async function fetchNotifications() {
   try {
     const response = await fetch(API_URL);
-    
+
     if (!response.ok) {
       // 404, 401, 500, etc.
       throw new Error(`API error: ${response.status}`);
     }
-    
+
     const data = await response.json();
     return data;
-    
   } catch (error) {
     // Network error, parse error, etc.
-    console.error('Error:', error);
-    return [];  // Return empty list gracefully
+    console.error("Error:", error);
+    return []; // Return empty list gracefully
   }
 }
 
