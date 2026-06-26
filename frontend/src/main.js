@@ -87,6 +87,17 @@ function setupEventListeners() {
   // Simulator submit
   simulatorForm.addEventListener("submit", handleSimulateNotification);
 
+  // Priority Inbox refresh button
+  const refreshPriorityBtn = document.getElementById("refresh-priority-btn");
+  if (refreshPriorityBtn) {
+    refreshPriorityBtn.addEventListener("click", () => {
+      if (typeof refreshNotifications !== "undefined") {
+        refreshNotifications();
+        showToast("Refreshing priority notifications...", "info");
+      }
+    });
+  }
+
   // Auto-select type-badge styling inside grid
   document.querySelectorAll("input[name='sim-type']").forEach((radio) => {
     radio.addEventListener("change", (e) => {

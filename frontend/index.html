@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/src/index.css" />
+    <link rel="stylesheet" href="/src/priorityInbox.css" />
   </head>
   <body>
     <div id="app">
@@ -167,6 +168,37 @@
             </div>
           </div>
 
+          <!-- Priority Inbox (Top 10 by Importance) -->
+          <div class="dashboard-card priority-inbox-card">
+            <div class="priority-inbox-header">
+              <h3>🎯 Priority Inbox</h3>
+              <p class="section-desc">Top 10 unread notifications by importance</p>
+              <button id="refresh-priority-btn" class="text-btn">🔄 Refresh</button>
+            </div>
+            
+            <div class="priority-legend">
+              <div class="legend-item">
+                <span class="legend-icon">📌</span>
+                <span class="legend-label">Placement (Weight: 3)</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-icon">✓</span>
+                <span class="legend-label">Result (Weight: 2)</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-icon">📢</span>
+                <span class="legend-label">Event (Weight: 1)</span>
+              </div>
+            </div>
+
+            <div id="priority-inbox-container" class="priority-inbox-container">
+              <div class="loading-state">
+                <span class="spinner"></span>
+                <p>Loading priority notifications...</p>
+              </div>
+            </div>
+          </div>
+
         </section>
       </main>
 
@@ -175,5 +207,6 @@
     </div>
     
     <script type="module" src="/src/main.js"></script>
+    <script type="module" src="/src/priorityInbox.js"></script>
   </body>
 </html>
