@@ -3,11 +3,147 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Afford</title>
+    <title>Afford Notification Platform</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/src/index.css" />
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <!-- App Shell -->
+      <header class="app-header">
+        <div class="header-logo">
+          <span class="logo-icon">🔔</span>
+          <h1>Afford<span class="pulse-dot"></span></h1>
+        </div>
+        <div class="user-status-area" id="user-status-area">
+          <!-- Dynamically populated when logged in -->
+        </div>
+      </header>
+
+      <main class="app-main">
+        <!-- Auth Screen (Visible when not logged in) -->
+        <section id="auth-screen" class="auth-card">
+          <div class="auth-header">
+            <h2>Sign In</h2>
+            <p>Select a user profile to enter the notification simulator</p>
+          </div>
+          <div class="user-selection-grid">
+            <button class="user-profile-btn" data-username="alice">
+              <span class="avatar">👩‍💻</span>
+              <span class="username">Alice</span>
+              <span class="role">Product Designer</span>
+            </button>
+            <button class="user-profile-btn" data-username="bob">
+              <span class="avatar">👨‍💻</span>
+              <span class="username">Bob</span>
+              <span class="role">Backend Dev</span>
+            </button>
+          </div>
+          <div class="divider"><span>OR ENTER CUSTOM USER</span></div>
+          <form id="custom-auth-form" class="custom-auth-form">
+            <input type="text" id="custom-username" placeholder="Enter username..." required />
+            <button type="submit" class="submit-btn">Login</button>
+          </form>
+        </section>
+
+        <!-- Dashboard Screen (Visible when logged in) -->
+        <section id="dashboard-screen" class="dashboard-layout hidden">
+          
+          <!-- Column 1: Notification Simulator -->
+          <div class="dashboard-card simulator-card">
+            <h3>Notification Simulator</h3>
+            <p class="section-desc">Create and dispatch notifications to users in real-time.</p>
+            
+            <form id="simulator-form">
+              <div class="form-group">
+                <label for="sim-target">Target Recipient</label>
+                <select id="sim-target">
+                  <!-- Dynamically populated or manually selected -->
+                </select>
+              </div>
+              
+              <div class="form-group">
+                <label>Notification Type</label>
+                <div class="type-selector-grid">
+                  <label class="type-label type-info checked">
+                    <input type="radio" name="sim-type" value="info" checked />
+                    <span class="type-badge">ℹ️ Info</span>
+                  </label>
+                  <label class="type-label type-success">
+                    <input type="radio" name="sim-type" value="success" />
+                    <span class="type-badge">✅ Success</span>
+                  </label>
+                  <label class="type-label type-warning">
+                    <input type="radio" name="sim-type" value="warning" />
+                    <span class="type-badge">⚠️ Warning</span>
+                  </label>
+                  <label class="type-label type-error">
+                    <input type="radio" name="sim-type" value="error" />
+                    <span class="type-badge">🚨 Error</span>
+                  </label>
+                </div>
+              </div>
+              
+              <div class="form-group">
+                <label for="sim-title">Title</label>
+                <input type="text" id="sim-title" placeholder="e.g. System Update" required />
+              </div>
+              
+              <div class="form-group">
+                <label for="sim-message">Message</label>
+                <textarea id="sim-message" placeholder="Type notification contents..." rows="3" required></textarea>
+              </div>
+              
+              <button type="submit" class="send-notification-btn">
+                <span>Dispatch Notification</span>
+                <span class="btn-icon">🚀</span>
+              </button>
+            </form>
+          </div>
+
+          <!-- Column 2: Notification Feed -->
+          <div class="dashboard-card feed-card">
+            <div class="feed-header">
+              <div class="feed-title-area">
+                <h3>Notification Inbox</h3>
+                <span class="connection-status-badge" id="conn-status">Disconnected</span>
+              </div>
+              <button id="mark-all-read-btn" class="text-btn">Mark All Read</button>
+            </div>
+            
+            <!-- Filter Bar -->
+            <div class="filter-bar">
+              <button class="filter-btn active" data-filter="all">All</button>
+              <button class="filter-btn" data-filter="unread">Unread</button>
+              <button class="filter-btn" data-filter="read">Read</button>
+            </div>
+
+            <!-- Scrollable list of notifications -->
+            <div class="notifications-list" id="notifications-list">
+              <div class="empty-state">
+                <span class="empty-icon">📭</span>
+                <p>No notifications found.</p>
+              </div>
+            </div>
+
+            <!-- Pagination Controls -->
+            <div class="pagination-controls hidden" id="pagination-controls">
+              <button id="prev-page-btn" class="page-btn" disabled>← Previous</button>
+              <span id="page-indicator">Page 1 of 1</span>
+              <button id="next-page-btn" class="page-btn" disabled>Next →</button>
+            </div>
+          </div>
+
+        </section>
+      </main>
+
+      <!-- Real-time Toast Container -->
+      <div id="toast-container" class="toast-container"></div>
+    </div>
+    
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>
