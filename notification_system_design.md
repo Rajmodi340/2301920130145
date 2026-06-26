@@ -214,3 +214,167 @@ data: {
 ```
 
 When the client receives this event, it increments the unread notification badge and presents a Toast alert to the user.
+
+---
+
+## Stage 2: Persistent Storage and Scaling Strategy
+
+### 1. Database Selection & Choice Justification
+For persisting notifications, we suggest using **MongoDB** (a document-oriented NoSQL database). 
+
+**Key Reasons for Choosing MongoDB:**
+- **Flexible Schema (Semi-structured data)**: Notification payloads vary widely. A security alert might have IP details, whereas a transactional update might have order links. JSON documents fit this variation naturally without complex JOIN tables.
+- **Write Performance**: Notifications are write-intensive (lots of micro-services generating events). MongoDB provides high-throughput insert operations (especially with write concern configurations).
+- **Scalability (Horizontal Sharding)**: Sharding by `userId` in MongoDB is native and simple. All notifications for a specific user reside on the same shard, which ensures extremely fast reads/writes for user notification boxes.
+- **Time-to-Live (TTL) Indexes**: MongoDB has native support for TTL indexes. We can automatically prune/archive notifications that are read and older than 30 days without running custom Cron scripts.
+- **Rich JSON Queries**: We can query nested arrays/objects easily.
+
+*(Alternative: If strict ACID transactions and relational structures were required, PostgreSQL with a JSONB column would be the ideal RDBMS choice. However, for a high-volume notification feed, document storage is highly optimal.)*
+
+---
+
+### 2. Database Schema Design
+
+We will represent notifications using the following schema (in MongoDB JSON Schema structure):
+
+```json
+{
+  "bsonType": "object",
+  "required": ["userId", "title", "message", "type", "isRead", "createdAt"],
+  "properties": {
+    "_id": {
+      "bsonType": "objectId",
+      "description": "Unique auto-generated MongoDB identifier"
+    },
+    "userId": {
+      "bsonType": "string",
+      "description": "ID of the recipient user (references the Users collection)"
+    },
+    "title": {
+      "bsonType": "string",
+      "maxLength": 100,
+      "description": "Short heading of the notification"
+    },
+    "message": {
+      "bsonType": "string",
+      "maxLength": 1000,
+      "description": "Detail message body of the notification"
+    },
+    "type": {
+      "enum": ["info", "success", "warning", "error"],
+      "description": "Notification category affecting severity and styling"
+    },
+    "isRead": {
+      "bsonType": "bool",
+      "description": "Status indicator if user opened/dismissed the alert"
+    },
+    "createdAt": {
+      "bsonType": "date",
+      "description": "Timestamp when the notification was created"
+    }
+  }
+}
+```
+
+#### Indexes:
+To guarantee quick reads and write operations, the following indexes are applied:
+1. **Compound Index**: `{ userId: 1, isRead: 1, createdAt: -1 }`
+   - *Purpose*: Optimizes the feed fetch endpoint `GET /api/notifications` which filters by `userId` and `isRead` status, sorting by `createdAt` in descending order.
+2. **TTL Index**: `{ createdAt: 1 }` with `expireAfterSeconds: 2592000` (30 days)
+   - *Purpose*: Automatically cleans up old history to control storage footprint.
+
+---
+
+### 3. Scaling Issues & Solutions
+
+As the notification platform data volume increases, several key challenges arise:
+
+#### Problem A: Slow Pagination (Large Page Offsets)
+- *Details*: Fetching notifications using `limit` and `skip` (e.g. `skip(100000).limit(10)`) forces the database to scan all preceding documents before returning the target subset.
+- *Solution*: Use **Keyset Pagination (Cursor-based Pagination)**. Instead of skipping offsets, queries check for entries older than a specific notification ID or timestamp (`createdAt < lastSeenTimestamp`).
+
+#### Problem B: Huge Index Memory Usage
+- *Details*: As the number of documents grows, indexes can grow larger than the server's RAM (Working Set), causing slow disk lookups.
+- *Solution*: Use **Partial Indexes**. For example, index only *unread* notifications since read notifications are rarely queried:
+  `db.notifications.createIndex({ userId: 1, createdAt: -1 }, { partialFilterExpression: { isRead: false } })`
+
+#### Problem C: Write Saturation (Hotspots)
+- *Details*: Millions of system actions trigger notifications simultaneously, locking DB tables or chocking disk I/O.
+- *Solution*:
+  1. **Message Queue / Buffer**: Push notifications to a queue (like Kafka or RabbitMQ) first, allowing a consumer service to throttle writes to the DB.
+  2. **Sharding**: Horizontally partition/shard the database using `userId` as the shard key. This distributes the read and write loads across multiple physical database nodes.
+
+#### Problem D: Disk Exhaustion
+- *Details*: Retaining trillions of notifications forever chokes storage.
+- *Solution*: Set up a **Data Tiering / Archiving Pipeline**. Move read notifications older than 7 days from the hot MongoDB store into cold cloud storage (e.g., AWS S3) for audit purposes, or use TTL indexes to discard them.
+
+---
+
+### 4. Database NoSQL Queries (MongoDB)
+
+Based on the REST APIs designed in Stage 1, these are the corresponding MongoDB NoSQL queries:
+
+#### A. Insert Notification (Mock Trigger)
+*Saves a new notification to the database.*
+```javascript
+db.notifications.insertOne({
+  userId: "user_alice_123",
+  title: "Security Alert",
+  message: "New login detected from a new IP address.",
+  type: "warning",
+  isRead: false,
+  createdAt: new Date()
+});
+```
+
+#### B. Fetch Notifications (Paginated & Filtered)
+*Queries notifications for a specific user, sorted newest first, with cursor-based pagination.*
+
+1. **Fetch Unread Notifications (First Page)**:
+   ```javascript
+   db.notifications.find({
+     userId: "user_alice_123",
+     isRead: false
+   })
+   .sort({ createdAt: -1 })
+   .limit(10);
+   ```
+
+2. **Fetch Next Page (Cursor-based using `_id` and timestamp)**:
+   ```javascript
+   db.notifications.find({
+     userId: "user_alice_123",
+     isRead: false,
+     createdAt: { $lt: ISODate("2026-06-26T11:20:00.000Z") }
+   })
+   .sort({ createdAt: -1 })
+   .limit(10);
+   ```
+
+#### C. Mark Single Notification as Read
+*Updates the status of a specific notification belonging to the logged-in user.*
+```javascript
+db.notifications.updateOne(
+  {
+    _id: ObjectId("647f5bb1c58d04a60c0f8812"),
+    userId: "user_alice_123"
+  },
+  {
+    $set: { isRead: true }
+  }
+);
+```
+
+#### D. Mark All Notifications as Read
+*Sets `isRead: true` for all unread notifications for a specific user.*
+```javascript
+db.notifications.updateMany(
+  {
+    userId: "user_alice_123",
+    isRead: false
+  },
+  {
+    $set: { isRead: true }
+  }
+);
+```
