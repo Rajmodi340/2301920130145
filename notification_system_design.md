@@ -1417,6 +1417,291 @@ The Priority Inbox is a complete, production-ready solution for intelligent noti
 
 All while maintaining clean, documented, testable code.
 
+# Stage 7: Frontend Integration, Logging Middleware & Notification UI
+
+## Overview
+
+The frontend application is enhanced to provide a production-ready notification experience while integrating the logging middleware throughout the application lifecycle. The implementation focuses on maintainability, error handling, performance, and user experience.
+
+---
+
+## Objectives
+
+- Integrate logging middleware across all API requests.
+- Display all notifications.
+- Display priority notifications.
+- Allow filtering notifications by type.
+- Allow limiting the top **N** priority notifications.
+- Distinguish between read and unread notifications.
+- Implement robust loading and error handling.
+- Ensure responsive desktop and mobile layouts.
+- Run the application on **http://localhost:3000**.
+- Use **Material UI (MUI)** exclusively for UI components.
+
+---
+
+# Project Structure
+
+```
+notification-app-fe/
+│
+├── public/
+│
+├── src/
+│   ├── api/
+│   │     notifications.js
+│   │
+│   ├── components/
+│   │     NotificationCard.jsx
+│   │     NotificationList.jsx
+│   │     PriorityNotificationList.jsx
+│   │     NotificationFilter.jsx
+│   │     NotificationBadge.jsx
+│   │     Loading.jsx
+│   │     Error.jsx
+│   │
+│   ├── context/
+│   │     NotificationContext.jsx
+│   │
+│   ├── hooks/
+│   │     useNotifications.js
+│   │
+│   ├── middleware/
+│   │     logger.js
+│   │
+│   ├── pages/
+│   │     Home.jsx
+│   │     Notifications.jsx
+│   │     PriorityNotifications.jsx
+│   │
+│   ├── services/
+│   │     notificationService.js
+│   │
+│   ├── utils/
+│   │     priorityHelper.js
+│   │
+│   ├── App.jsx
+│   ├── main.jsx
+│   └── theme.js
+│
+├── package.json
+└── README.md
+```
+
+---
+
+# Logging Middleware
+
+Every outgoing API request is logged before being sent.
+
+Example log:
+
+```text
+[INFO]
+GET /notifications
+Timestamp : 2026-06-26T10:45:20Z
+
+[SUCCESS]
+Status : 200
+Duration : 42 ms
+```
+
+Errors are also logged.
+
+```text
+[ERROR]
+GET /notifications
+Status : 500
+Message : Internal Server Error
+```
+
+---
+
+# Notification Pages
+
+## Home Page
+
+Displays:
+
+- Recent notifications
+- Unread notification badge
+- Navigation to Notification Center
+
+---
+
+## Notification Center
+
+Features:
+
+- Show all notifications
+- Read / Unread indicator
+- Pagination
+- Search
+- Filter by type
+- Sort by latest
+
+---
+
+## Priority Notifications Page
+
+Displays only priority notifications.
+
+Supports:
+
+- Top N notifications
+- Filter by notification type
+- Sort by priority score
+
+Example
+
+```
+Top 5 Placement Notifications
+
+Top 10 Event Notifications
+
+Top 20 All Notifications
+```
+
+---
+
+# Notification States
+
+Each notification contains
+
+```json
+{
+  "id": "101",
+  "title": "Placement Drive",
+  "message": "Microsoft hiring begins tomorrow.",
+  "type": "placement",
+  "priority": 95,
+  "isRead": false,
+  "createdAt": "2026-06-26T12:00:00Z"
+}
+```
+
+Unread notifications are highlighted using Material UI styling.
+
+Read notifications appear with reduced emphasis.
+
+---
+
+# API Integration
+
+Notification data is fetched from
+
+```
+GET http://4.224.186.213/evaluation-service/notifications
+```
+
+Supported query parameters:
+
+| Parameter | Description |
+|------------|-------------|
+| limit | Number of notifications |
+| type | Notification Type |
+| priority | Priority Filter |
+| page | Pagination |
+| sort | Sorting |
+
+Example
+
+```
+GET /notifications?limit=10&type=placement
+```
+
+---
+
+# Error Handling
+
+The application handles
+
+- API timeout
+- Invalid response
+- Empty notification list
+- Network failure
+- Unauthorized access
+
+User-friendly Material UI alerts are displayed instead of application crashes.
+
+---
+
+# Responsive Design
+
+The UI is optimized for
+
+- Desktop
+- Tablet
+- Mobile
+
+Material UI Grid and Flex layouts ensure responsiveness.
+
+---
+
+# Performance Optimizations
+
+- React memoization
+- Lazy loading
+- API caching
+- Efficient state updates
+- Reusable components
+
+---
+
+# Technology Stack
+
+- React
+- Material UI
+- Axios
+- React Context API
+- React Hooks
+
+---
+
+# User Flow
+
+```
+User Login
+      │
+      ▼
+Fetch Notifications
+      │
+      ▼
+Logging Middleware
+      │
+      ▼
+API Request
+      │
+      ▼
+Receive Notifications
+      │
+      ▼
+Store in Context
+      │
+      ▼
+Display Notification List
+      │
+      ▼
+Priority Filter
+      │
+      ▼
+Read / Unread Update
+```
+
+---
+
+# Expected Outcome
+
+The application provides:
+
+- Production-ready notification center
+- Priority notification page
+- Read/unread tracking
+- Logging middleware integration
+- Material UI based responsive interface
+- Robust API error handling
+- Clean and maintainable React architecture
+
 
 
 
